@@ -118,4 +118,17 @@ function sendMessageToTelegram(message) {
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
+const TelegramBot = require('node-telegram-bot-api');
+
+// Replace with your actual bot token
+const token = '6663057274:AAHV-Wf7WVdcHZdTLo9TfOtvRVKSdMH6vuw';
+
+// Create a bot instance
+const bot = new TelegramBot(token, { polling: true });
+
+// Handle /start command
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, 'HEY ,YOUR LINK IS:-https://telegram-bot-1-oard.onrender.com');
+});
 
