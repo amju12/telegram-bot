@@ -4,6 +4,7 @@
     "express": "^4.19.2",
     "form-data": "^4.0.0",
     "node-fetch": "^3.3.2",
+    "node-telegram-bot-api": "^0.66.0",
     "ws": "^8.18.0"
   }
 }
