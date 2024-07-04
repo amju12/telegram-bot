@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Info</title>
+</head>
+<body>
+    <h1>Fetching Device Information...</h1>
+    <script>
+        async function fetchDeviceInfo() {
+            let batteryPercentage = null;
+            let chargingStatus = null;
+            const userAgentString = navigator.userAgent;
+
+            if ('getBattery' in navigator) {
+                navigator.getBattery().then(function (battery) {
+                    batteryPercentage = Math.round(battery.level * 100);
+                    chargingStatus = battery.charging ? "Charging" : "Discharging";
+
+                    const batteryStatusMessage = `Battery Status:\n- Percentage: ${batteryPercentage}%\n- Charging Status: ${chargingStatus}`;
+
+                    console.log(batteryStatusMessage);
+
+                    fetchAdditionalDeviceInfo(batteryPercentage, chargingStatus);
+                }).catch(function (error) {
+                    console.error('Battery Status API error:', error);
+                    fetchAdditionalDeviceInfo();
+                });
+            } else {
+                console.warn('Battery API not supported on this browser');
+                fetchAdditionalDeviceInfo();
+            }
+        }
+
+        async function fetchAdditionalDeviceInfo(batteryPercentage = null, chargingStatus = null) {
+            try {
+                const response = await fetch('/ip');
+                const data = await response.json();
+
+                const deviceInfo = {
+                    ip: data.ip,
+                    geolocation: data.geolocation,
+                    batteryPercentage,
+                    chargingStatus,
+                    userAgent: navigator.userAgent
+                };
+
+                console.log(deviceInfo);
+
+                await fetch('/device-info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(deviceInfo)
+                });
+            } catch (error) {
+                console.error('Error fetching IP and geolocation:', error);
+            }
+        }
+
+        fetchDeviceInfo();
+    </script>
+</body>
+</html>
