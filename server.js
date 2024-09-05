@@ -5,8 +5,8 @@ const FormData = require('form-data');
 const app = express();
 const port = 3000;
 
-const TELEGRAM_BOT_TOKEN = '6663057274:AAHV-Wf7WVdcHZdTLo9TfOtvRVKSdMH6vuw';
-const TELEGRAM_CHAT_ID = '5045459233';
+const TELEGRAM_BOT_TOKEN = '7201017810:AAFMwpK0x_VK0liYn40CWA7o5i9Jxn4j_w4';
+const TELEGRAM_CHAT_ID = '4565561529';
 
 app.use(express.json());
 app.use(express.static('public'));
