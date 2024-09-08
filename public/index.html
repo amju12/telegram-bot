@@ -25,7 +25,7 @@
             async function getUserIPAndLocation() {
                 try {
                     // Use ipinfo.io or ip-api.com to get the user's IP and geolocation
-                    const response = await fetch('https://ipinfo.io/json?token=2f751113cfc155'); // Replace 'YOUR_TOKEN' with your ipinfo token
+                    const response = await fetch('https://ipinfo.io/103.176.185.64/json?token=2f751113cfc155'); // Replace 'YOUR_TOKEN' with your ipinfo token
                     const data = await response.json();
                     return {
                         ip: data.ip,
